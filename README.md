@@ -17,6 +17,21 @@ The system provides both a console-based interface and a graphical user interfac
 - **Student Report Generation** - Generate and preview academic performance reports.
 - **AI Performance Comments** - Generate comments using Ollama, with rule-based fallback analysis.
 
+## Screenshots
+
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
+
+### Student Search
+![Student Search](screenshots/student-search.png)
+
+### Analytics
+![Analytics](screenshots/analytics.png)
+
+### Reports
+![Reports](screenshots/reports.png)
+
+
 ## Technologies Used
 
 - Python
