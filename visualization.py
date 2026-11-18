@@ -69,3 +69,5 @@ class Visualization:
 
 
         plt.close()
+
+        

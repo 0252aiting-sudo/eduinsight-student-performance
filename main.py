@@ -37,7 +37,7 @@ def main():
     # Read the dataset (semicolon-separated CSV - the standard format for
     # the UCI student performance dataset)
     try:
-        data = pd.read_csv("student-mat.csv", sep=";")
+        data = pd.read_csv("asss/student-mat.csv", sep=";")
         print("✓ Dataset loaded successfully!")
     except FileNotFoundError:
         print("Error: student-mat.csv not found.")

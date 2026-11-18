@@ -85,3 +85,6 @@ class PerformanceAnalyzer:
         })
         
         return factors  # Return the list of 4 factor breakdowns, used for display and for the AI prompt
+
+
+

@@ -1,753 +1,145 @@
-import customtkinter as ctk
-from tkinter import messagebox
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.pyplot as plt
+"""EduInsight desktop app built with PyWebView (no CustomTkinter dependency)."""
+from __future__ import annotations
 
+import json
+import os
+import sys
+from pathlib import Path
 import pandas as pd
+import webview
 
-from student import Student, ExcellentStudent
 from analyzer import PerformanceAnalyzer
-from visualization import Visualization
 from ai_comment import OllamaAI
 from report import ReportGenerator
 
-# ==========================
-# CustomTkinter Settings
-# ==========================
-
-ctk.set_appearance_mode("System")
-ctk.set_default_color_theme("blue")
+BASE_DIR = Path(__file__).resolve().parent
 
 
-class EduInsightGUI(ctk.CTk):
+class EduInsightAPI:
+    """Small, JSON-serialisable bridge exposed to the JavaScript interface."""
 
     def __init__(self):
-
-        super().__init__()
-
-        self.title("EduInsight Student Analytics System")
-        self.geometry("1200x700")
-
-        # ------------------------
-        # Load Dataset
-        # ------------------------
-
-        self.data = pd.read_csv("student-mat.csv", sep=";")
-
+        self.data = pd.read_csv(BASE_DIR / "student-mat.csv", sep=";")
         self.analyzer = PerformanceAnalyzer(self.data)
-        self.visual = Visualization(self.data)
-        self.report = ReportGenerator(self.data)
         self.ai = OllamaAI()
+        self.report = ReportGenerator(self.data)
 
-        # ------------------------
-        # Sidebar
-        # ------------------------
+    @staticmethod
+    def _clean(value):
+        """Convert pandas/numpy scalar values to values JSON can carry."""
+        if hasattr(value, "item"):
+            return value.item()
+        return value
 
-        self.sidebar = ctk.CTkFrame(
-            self,
-            width=220
-            )
-
-        self.sidebar.pack(side="left",fill="y")
-
-        self.logo = ctk.CTkLabel(
-            self.sidebar,
-            text="EduInsight",
-            font=("Arial",28,"bold")
-        )
-
-        self.logo.pack(pady=30)
-
-        self.btn_dashboard = ctk.CTkButton(
-            self.sidebar,
-            text="Dashboard",
-            command=self.dashboard_page
-        )
-
-        self.btn_dashboard.pack(pady=10,padx=20)
-
-        self.btn_search = ctk.CTkButton(
-            self.sidebar,
-            text="Search Student",
-            command=self.search_page
-        )
-
-        self.btn_search.pack(pady=10,padx=20)
-
-        self.btn_analytics = ctk.CTkButton(
-            self.sidebar,
-            text="Analytics",
-            command=self.analytics_page
-        )
-
-        self.btn_analytics.pack(pady=10,padx=20)
-
-        self.btn_report = ctk.CTkButton(
-            self.sidebar,
-            text="Generate Report",
-            command=self.report_page
-        )
-
-        self.btn_report.pack(pady=10,padx=20)
-
-        self.btn_exit = ctk.CTkButton(
-            self.sidebar,
-            text="Exit",
-            fg_color="red",
-            command=self.destroy
-        )
-
-        self.btn_exit.pack(side="bottom",pady=20)
-
-        # ------------------------
-        # Main Frame
-        # ------------------------
-
-        self.main = ctk.CTkFrame(self)
-
-        self.main.pack(fill="both",expand=True,padx=20,pady=20)
-
-        self.dashboard_page()
-
-    # =====================================
-    # Clear Main Frame
-    # =====================================
-
-    def clear_main(self):
-
-        for widget in self.main.winfo_children():
-            widget.destroy()
-
-
-    # =====================================
-    # Dashboard
-    # =====================================
-
-    def dashboard_page(self):
-
-        self.clear_main()
-
-        dashboard_scroll = ctk.CTkScrollableFrame(
-            self.main
-        )
-
-        dashboard_scroll.pack(
-            fill="both",
-            expand=True
-        )
-
-        title = ctk.CTkLabel(
-            dashboard_scroll,
-            text="EduInsight Dashboard",
-            font=("Arial",28,"bold")
-        )
-
-        title.pack(pady=20)
-
-        subtitle = ctk.CTkLabel(
-            dashboard_scroll,
-            text="Student Academic Performance Analytics System",
-            font=("Arial",16)
-        )
-
-        subtitle.pack(pady=5)
-
-        # ===========================
-        # Statistics Frame
-        # ===========================
-
-        stats = ctk.CTkFrame(dashboard_scroll)
-
-        stats.pack(fill="x",padx=30,pady=20)
-
+    def get_dashboard(self):
+        passed = self.analyzer.pass_students()
         total = len(self.data)
-        average = self.analyzer.average_grade()
-        highest = self.analyzer.highest_grade()
-        pass_student = self.analyzer.pass_students()
-        fail_student = self.analyzer.fail_students()
-        excellent = len(self.data[self.data["G3"] >= 18])
-
-        labels = [
-
-            ("Total Students", total),
-
-            ("Average Grade", round(average,2)),
-
-            ("Highest Grade", highest),
-
-            ("Pass Students", pass_student),
-
-            ("Fail Students", fail_student),
-
-            ("Excellent Students", excellent)
-
-        ]
-
-        for text,value in labels:
-
-            card = ctk.CTkFrame(stats)
-
-            card.pack(fill="x",padx=15,pady=10)
-
-            left = ctk.CTkLabel(
-                card,
-                text=text,
-                font=("Arial",16,"bold")
-            )
-
-            left.pack(side="left",padx=20,pady=15)
-
-            right = ctk.CTkLabel(
-                card,
-                text=str(value),
-                font=("Arial",18)
-            )
-
-            right.pack(side="right",padx=20)
-
-        # ===========================
-        # Feature Box
-        # ===========================
-
-        feature = ctk.CTkFrame(dashboard_scroll)
-
-        feature.pack(fill="both",expand=True,padx=30,pady=10)
-
-        ctk.CTkLabel(
-            feature,
-            text="System Features",
-            font=("Arial",20,"bold")
-        ).pack(anchor="w",padx=20,pady=15)
-
-        text = """
-    ✓ Search Student Information
-
-    ✓ Performance Factors Analysis
-
-    ✓ AI Performance Comment
-
-    ✓ Student Statistics
-
-    ✓ Data Visualization
-
-    ✓ Generate Report
-    """
-
-        textbox = ctk.CTkTextbox(
-            feature,
-            height=180
-        )
-
-        textbox.pack(fill="both",expand=True,padx=20,pady=15)
-
-        textbox.insert("1.0",text)
-
-        textbox.configure(state="disabled")
-
-    # =====================================
-    # Search Student Page
-    # =====================================
-
-    def search_page(self):
-
-        self.clear_main()
-
-        title = ctk.CTkLabel(
-            self.main,
-            text="Student Search",
-            font=("Arial",28,"bold")
-        )
-
-        title.pack(pady=15)
-
-        search_frame = ctk.CTkFrame(self.main)
-
-        search_frame.pack(fill="x",padx=20,pady=10)
-
-        ctk.CTkLabel(
-            search_frame,
-            text="Student ID"
-        ).pack(side="left",padx=15)
-
-        self.entry_id = ctk.CTkEntry(
-            search_frame,
-            width=200
-        )
-
-        self.entry_id.pack(side="left",padx=10)
-
-        ctk.CTkButton(
-            search_frame,
-            text="Search",
-            command=self.search_student
-        ).pack(side="left",padx=10)
-
-        ctk.CTkButton(
-            search_frame,
-            text="New Search",
-            command=self.new_search
-        ).pack(side="left",padx=10)
-
-        # ===========================
-        # Student Information
-        # ===========================
-
-        self.info_box = ctk.CTkTextbox(
-            self.main,
-            height=180
-        )
-
-        self.info_box.pack(
-            fill="x",
-            padx=20,
-            pady=10
-        )
-
-        # ===========================
-        # Performance Factors
-        # ===========================
-
-        self.factor_box = ctk.CTkTextbox(
-            self.main,
-            height=180
-        )
-
-        self.factor_box.pack(
-            fill="x",
-            padx=20,
-            pady=10
-        )
-
-        # ===========================
-        # AI Comment
-        # ===========================
-
-        self.ai_box = ctk.CTkTextbox(
-            self.main,
-            height=180
-        )
-
-        self.ai_box.pack(
-            fill="both",
-            expand=True,
-            padx=20,
-            pady=10
-        )
-
-    def new_search(self):
-
-        self.entry_id.delete(
-            0,
-            "end"
-        )
-
-        self.info_box.delete(
-            "1.0",
-            "end"
-        )
-
-        self.factor_box.delete(
-            "1.0",
-            "end"
-        )
-
-        self.ai_box.delete(
-            "1.0",
-            "end"
-        )
-
-        self.entry_id.focus()
-
-    def search_student(self):
-
-        self.info_box.delete("1.0","end")
-        self.factor_box.delete("1.0","end")
-        self.ai_box.delete("1.0","end")
-
-        try:
-
-            student_id = int(self.entry_id.get())
-
-        except:
-
-            messagebox.showerror(
-                "Error",
-                "Please enter a valid Student ID."
-            )
-
-            return
-
-        if student_id < 1 or student_id > len(self.data):
-
-            messagebox.showerror(
-                "Error",
-                "Student ID not found."
-            )
-
-            return
-
-        row = self.data.iloc[student_id-1]
-
-        info = f"""
-Student Information
-
-Student ID : {student_id}
-
-School : {row['school']}
-
-Age : {row['age']}
-
-Gender : {row['sex']}
-
-Final Grade : {row['G3']}
-
-Previous Failures : {row['failures']}
-
-Study Time : {row['studytime']}
-
-Absences : {row['absences']}
-
-Health : {row['health']}
-"""
-
-        self.info_box.insert(
-            "1.0",
-            info
-        )
-
-        factors = self.analyzer.analyze_performance_factors(row)
-
-        text = "Performance Factors\n\n"
-
-        for factor in factors:
-
-            text += f"""
-    {factor['factor']}
-
-    Importance : {factor['importance']}%
-
-    Analysis :
-    {factor['analysis']}
-
-    Recommendation :
-    {factor['recommendation']}
-
-    --------------------------
-    """
-
-        self.factor_box.insert(
-            "1.0",
-            text
-        )
-
-        student_data = {
-
-            "student_id":student_id,
-
-            "G3":row["G3"],
-
-            "failures":row["failures"],
-
-            "studytime":row["studytime"],
-
-            "absences":row["absences"],
-
-            "health":row["health"]
-
+        grades = [int(x) for x in self.data["G3"].tolist()]
+        study = self.data.groupby("studytime")["G3"].mean()
+        gender = self.data["sex"].value_counts().to_dict()
+        return {
+            "total": total,
+            "average": round(float(self.analyzer.average_grade()), 2),
+            "highest": int(self.analyzer.highest_grade()),
+            "lowest": int(self.analyzer.lowest_grade()),
+            "passed": passed,
+            "failed": self.analyzer.fail_students(),
+            "pass_rate": round(passed / total * 100, 1),
+            "excellent": int((self.data["G3"] >= 18).sum()),
+            "grades": grades,
+            "study_time": {str(int(k)): round(float(v), 2) for k, v in study.items()},
+            "gender": {str(k): int(v) for k, v in gender.items()},
         }
 
-        ai = self.ai.generate_performance_analysis(
-            student_data,
-            factors
-        )
-
-        self.ai_box.insert(
-            "1.0",
-               ai
-        )
-
-    # =====================================
-    # Analytics Page
-    # =====================================
-
-    def analytics_page(self):
-
-        self.clear_main()
-
-        title = ctk.CTkLabel(
-            self.main,
-            text="Student Analytics",
-            font=("Arial",28,"bold")
-        )
-
-        title.pack(pady=15)
-
-        body = ctk.CTkFrame(self.main)
-
-        body.pack(fill="both",expand=True,padx=20,pady=10)
-
-        # -------------------------
-        # Left Panel
-        # -------------------------
-
-        left = ctk.CTkFrame(body,width=300)
-
-        left.pack(side="left",fill="y",padx=10)
-
-        average = round(self.analyzer.average_grade(),2)
-        highest = self.analyzer.highest_grade()
-        lowest = self.analyzer.lowest_grade()
-        passed = self.analyzer.pass_students()
-        failed = self.analyzer.fail_students()
-
-        excellent = len(
-            self.data[self.data["G3"]>=18]
-        )
-
-        info = f"""
-    Total Students : {len(self.data)}
-
-    Average Grade : {average}
-
-    Highest Grade : {highest}
-
-    Lowest Grade : {lowest}
-
-    Pass Students : {passed}
-
-    Fail Students : {failed}
-
-    Excellent Students : {excellent}
-    """
-
-        textbox = ctk.CTkTextbox(
-            left,
-            width=250,
-            height=280
-        )
-
-        textbox.pack(padx=15,pady=20)
-
-        textbox.insert("1.0",info)
-
-        textbox.configure(state="disabled")
-
-        # -------------------------
-        # Chart Buttons
-        # -------------------------
-
-        ctk.CTkButton(
-            left,
-            text="Pass vs Fail",
-            command=self.show_pass_chart
-        ).pack(fill="x",padx=15,pady=5)
-
-        ctk.CTkButton(
-            left,
-            text="Grade Distribution",
-            command=self.show_histogram
-        ).pack(fill="x",padx=15,pady=5)
-
-        ctk.CTkButton(
-            left,
-            text="Study Time",
-            command=self.show_study_chart
-        ).pack(fill="x",padx=15,pady=5)
-
-        # -------------------------
-        # Right Panel
-        # -------------------------
-
-        self.chart_frame = ctk.CTkFrame(body)
-
-        self.chart_frame.pack(
-            side="right",
-            fill="both",
-            expand=True,
-            padx=10
-        )
-
-        self.after(
-            100,
-        )
-
-    def clear_chart(self):
-
-        for widget in self.chart_frame.winfo_children():
-            widget.destroy()
-
-    def show_pass_chart(self):
-
-        self.clear_chart()
-
-        passed = self.analyzer.pass_students()
-        failed = self.analyzer.fail_students()
-
-        fig = plt.Figure(figsize=(6,4))
-
-        ax = fig.add_subplot(111)
-
-        ax.bar(
-            ["Pass","Fail"],
-            [passed,failed]
-        )
-
-        ax.set_title("Pass vs Fail")
-
-        self.canvas = FigureCanvasTkAgg(
-            fig,
-            master=self.chart_frame
-        )
-
-        self.canvas.draw()
-
-        self.canvas.get_tk_widget().pack(
-            fill="both",
-            expand=True
-        )
-
-    def show_histogram(self):
-
-        self.clear_chart()
-
-        fig = plt.Figure(figsize=(6,4))
-
-        ax = fig.add_subplot(111)
-
-        ax.hist(
-            self.data["G3"],
-            bins=10
-        )
-
-        ax.set_title("Grade Distribution")
-
-        ax.set_xlabel("Grade")
-
-        ax.set_ylabel("Students")
-
-        self.canvas = FigureCanvasTkAgg(
-            fig,
-            master=self.chart_frame
-        )
-
-        self.canvas.draw()
-
-        self.canvas.get_tk_widget().pack(
-            fill="both",
-            expand=True
-        )
-
-    def show_study_chart(self):
-
-        self.clear_chart()
-
-        avg = self.data.groupby(
-            "studytime"
-        )["G3"].mean()
-
-        fig = plt.Figure(figsize=(6,4))
-
-        ax = fig.add_subplot(111)
-
-        ax.plot(
-            avg.index,
-            avg.values,
-            marker="o"
-        )
-
-        ax.set_title("Study Time vs Average Grade")
-
-        ax.set_xlabel("Study Time")
-
-        ax.set_ylabel("Average Grade")
-
-        self.canvas = FigureCanvasTkAgg(
-            fig,
-            master=self.chart_frame
-        )
-
-        self.canvas.draw()
-
-        self.canvas.get_tk_widget().pack(
-            fill="both",
-            expand=True
-        )
-
-    # =====================================
-    # Report Page
-    # =====================================
-
-    def report_page(self):
-
-        self.clear_main()
-
-        title = ctk.CTkLabel(
-            self.main,
-            text="Report Generator",
-            font=("Arial",28,"bold")
-        )
-
-        title.pack(pady=20)
-
-        ctk.CTkLabel(
-            self.main,
-            text="Generate student performance report."
-        ).pack()
-
-        self.report_status = ctk.CTkLabel(
-            self.main,
-            text="Status : Ready",
-            font=("Arial",16)
-        )
-
-        self.report_status.pack(pady=20)
-
-        ctk.CTkButton(
-            self.main,
-            text="Generate Report",
-            width=220,
-            height=40,
-            command=self.generate_report
-        ).pack(pady=10)
-
-        ctk.CTkButton(
-            self.main,
-            text="Open Report",
-            width=220,
-            height=40,
-            command=self.open_report
-        ).pack(pady=10)
+    def get_student(self, student_id):
+        try:
+            student_id = int(student_id)
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "Please enter a valid numeric Student ID."}
+        if not 1 <= student_id <= len(self.data):
+            return {"ok": False, "message": f"Student ID must be between 1 and {len(self.data)}."}
+
+        row = self.data.iloc[student_id - 1]
+        factors = self.analyzer.analyze_performance_factors(row)
+        student_data = {
+            "student_id": student_id, "G3": int(row["G3"]),
+            "failures": int(row["failures"]), "studytime": int(row["studytime"]),
+            "absences": int(row["absences"]), "health": int(row["health"]),
+        }
+        # AI module gracefully falls back to rule-based feedback if Ollama is unavailable.
+        comment = self.ai.generate_performance_analysis(student_data, factors)
+        return {
+            "ok": True,
+            "student": {
+                "id": student_id, "school": str(row["school"]), "age": int(row["age"]),
+                "gender": "Female" if row["sex"] == "F" else "Male", "grade": int(row["G3"]),
+                "failures": int(row["failures"]), "studytime": int(row["studytime"]),
+                "absences": int(row["absences"]), "health": int(row["health"]),
+                "scholarship": bool(row["G3"] >= 18),
+            },
+            "factors": [{k: self._clean(v) for k, v in factor.items()} for factor in factors],
+            "comment": comment,
+        }
+
+    def find_by_grade(self, grade):
+        try:
+            grade = int(grade)
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "Grade must be a number from 0 to 20."}
+        if not 0 <= grade <= 20:
+            return {"ok": False, "message": "Grade must be between 0 and 20."}
+        result = self.data[self.data["G3"] == grade]
+        return {"ok": True, "students": self._student_rows(result)}
+
+    def get_scholarship_students(self):
+        return {"ok": True, "students": self._student_rows(self.data[self.data["G3"] >= 18])}
+
+    def get_top_students(self):
+        return self._student_rows(self.data.sort_values("G3", ascending=False).head(10))
+
+    def _student_rows(self, frame):
+        return [{
+            "id": int(index + 1), "school": str(row["school"]),
+            "gender": "Female" if row["sex"] == "F" else "Male",
+            "age": int(row["age"]), "grade": int(row["G3"]),
+        } for index, row in frame.iterrows()]
 
     def generate_report(self):
-
-        self.report.generate_report()
-
-        self.report_status.configure(
-            text="Status : Report Generated Successfully"
-        )
-
-        messagebox.showinfo(
-            "Success",
-            "Student_Report.txt has been generated."
-        )
-
-    def open_report(self):
-
-        import os
-
+        """Create the original text report and return it for preview/download."""
+        old_cwd = os.getcwd()
         try:
+            os.chdir(BASE_DIR)
+            self.report.generate_report()
+            content = (BASE_DIR / "Student_Report.txt").read_text(encoding="utf-8")
+            return {"ok": True, "filename": "Student_Report.txt", "content": content}
+        except Exception as exc:
+            return {"ok": False, "message": str(exc)}
+        finally:
+            os.chdir(old_cwd)
 
-            os.startfile("Student_Report.txt")
+    def get_app_info(self):
+        return {"dataset": "student-mat.csv", "students": len(self.data), "ollama": self.ai.check_ollama_running()}
 
-        except:
+    def close_app(self):
+        """Close the native PyWebView window when the user chooses Exit."""
+        if webview.windows:
+            webview.windows[0].destroy()
+        return {"ok": True}
 
-            messagebox.showerror(
-                "Error",
-                "Report not found.\nPlease generate the report first."
-            )
+
+def run():
+    api = EduInsightAPI()
+    window = webview.create_window(
+        "EduInsight | Student Analytics",
+        (BASE_DIR / "web" / "index.html").as_uri(),
+        js_api=api,
+        width=1440,
+        height=900,
+        min_size=(1120, 680),
+        background_color="#F8F9FA",
+    )
+    webview.start(debug=False)
+
 
 if __name__ == "__main__":
-
-    app = EduInsightGUI()
-
-    app.mainloop()        
+    run()
